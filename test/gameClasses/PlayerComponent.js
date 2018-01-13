@@ -26,6 +26,7 @@ var PlayerComponent = IgeClass.extend({
 	 */
 	_mouseUp: function () {
 		// Get the tile co-ordinates that the mouse is currently over
+		this._entity.path.clear();
 		var endTile = ige.$('tileMap1').mouseToTile();
 
 		// Tell the entity to start pathing along the new path

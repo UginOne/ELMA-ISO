@@ -1,151 +1,231 @@
 var Client = IgeClass.extend({
 	classId: 'Client',
 	init: function () {
-		ige.addComponent(IgeEditorComponent);
-		ige.globalSmoothing(true);
+        ige.addComponent(IgeEditorComponent);
+        ige.globalSmoothing(true);
 
-		// Load our textures
-		var self = this;
-		this.obj = [];
+        // Load our textures
+        var self = this,
+            gameTexture = [];
+        this.obj = [];
+        this.gameTexture = {};
+        this.backGroundObj = [];
 
-		// Create the HTML canvas
-		ige.createFrontBuffer(true);
+        // Create the HTML canvas
+        ige.createFrontBuffer(true);
+        this.implement(ClientObjects);
 
-		// Start the engine
-		ige.start(function (success) {
-			// Check if the engine started successfully
-			if (success) {
-				// SET THIS TO TRUE TO USE ISOMETRIC OUTPUT
-				// OR FALSE TO USE 2D OUTPUT. THIS DEMO WORKS
-				// IN BOTH 2D AND ISOMETRIC! GIVE IT A GO!
-				self.isoMode = true;
+        //gameTexture[0] = new IgeTexture('../assets/textures/backgrounds/grassTile.png');
+        this.loadTextures();
 
-				// Create the scene
-				self.mainScene = new IgeScene2d()
-					.id('mainScene')
-					.drawBounds(false)
-					.drawBoundsData(false);
 
-				self.objectScene = new IgeScene2d()
-					.id('objectScene')
-					.depth(0)
-					.drawBounds(false)
-					.drawBoundsData(false)
-					.mount(self.mainScene);
+        ige.on('texturesLoaded', function () {
+            ige.start(function (success) {
+                // Check if the engine started successfully
+                if (success) {
+                    self.isoMode = true;
+                    self.setupMap();
 
-				self.uiScene = new IgeScene2d()
-					.id('uiScene')
-					.depth(1)
-					.drawBounds(false)
-					.drawBoundsData(false)
-					.ignoreCamera(true) // We don't want the UI scene to be affected by the viewport's camera
-					.mount(self.mainScene);
+                    // Setup the initial entities
+                    self.setupEntities();
+                }
+            });
+        });
+    },
 
-				// Create the main viewport
-				self.vp1 = new IgeViewport()
-					.addComponent(IgeMousePanComponent)
-					.mousePan.limit(new IgeRect(-300, -100, 600, 200))
-					.mousePan.enabled(true)
-					.id('vp1')
-					.autoSize(true)
-					.scene(self.mainScene)
-					.drawMouse(true)
-					.drawBounds(true)
-					.drawBoundsData(true)
-					.mount(ige);
+    setupMap: function(){
+        var self = this;
+        // Create the scene
+        self.mainScene = new IgeScene2d()
+            .id('mainScene')
+            .drawBounds(false)
+            .drawBoundsData(false);
 
-				// Create some listeners for when the viewport is being panned
-				// so that we don't create a new path accidentally after a mouseUp
-				// occurs if we were panning
-				self.vp1.mousePan.on('panStart', function () {
-					// Store the current cursor mode
-					ige.client.data('tempCursorMode', ige.client.data('cursorMode'));
 
-					// Switch the cursor mode
-					ige.client.data('cursorMode', 'panning');
-					ige.input.stopPropagation();
-				});
+			self.objectScene = new IgeScene2d()
+				.id('objectScene')
+				.depth(0)
+				.drawBounds(false)
+				.drawBoundsData(false)
+				.mount(self.mainScene);
 
-				self.vp1.mousePan.on('panEnd', function () {
-					// Switch the cursor mode back
-					ige.client.data('cursorMode', ige.client.data('tempCursorMode'));
-					ige.input.stopPropagation();
-				});
+			//self.uiScene = new IgeScene2d()
+			//	.id('uiScene')
+			//	.depth(1)
+			//	.drawBounds(false)
+			//	.drawBoundsData(false)
+			//	.ignoreCamera(true) // We don't want the UI scene to be affected by the viewport's camera
+			//	.mount(self.mainScene);
 
-				// Create an isometric tile map
-				self.tileMap1 = new IgeTileMap2d()s
-					.id('tileMap1')
-					.isometricMounts(self.isoMode)
-					.tileWidth(40)
-					.tileHeight(40)
-					.gridSize(20, 20)
-					.drawGrid(true)
-					.drawMouse(true)
-					.drawBounds(true)
-					.drawBoundsData(false)
-					.highlightOccupied(true) // Draws a red tile wherever a tile is "occupied"
-					.mount(self.objectScene);
+			// Create the main viewport
+			self.vp1 = new IgeViewport()
+				.addComponent(IgeMousePanComponent)
+				//.mousePan.limit(new IgeRect(-300, -100, 600, 200))
+				.mousePan.enabled(true)
+				.id('vp1')
+				.autoSize(true)
+				.scene(self.mainScene)
+				.drawMouse(false)
+				.drawBounds(true)
+				.drawBoundsData(true)
+				.mount(ige);
 
-				// Create the 3d container that the player
-				// entity will be mounted to
-				self.player = new Character()
-					.id('player')
-					.addComponent(PlayerComponent)
-					.drawBounds(false)
-					.drawBoundsData(false)
-					.mount(self.tileMap1)
-					.translateToTile(0, 0, 0);
 
-				// Check if we are in iso mode
-				if (self.isoMode) {
-					self.player.isometric(true);
-				}
+			//self.backgroundScene = new IgeScene2d()
+            //        .id('backgroundScene')
+            //        .backgroundPattern(gameTexture[0], 'repeat', true, true)
+            //        .ignoreCamera(true) // We want the scene to remain static
+            //        .mount(self.mainScene);
 
-				// Set the camera to track the character with some
-				// tracking smoothing turned on (100)
-				self.vp1.camera.trackTranslate(self.player, 100);
+			// Create some listeners for when the viewport is being panned
+			// so that we don't create a new path accidentally after a mouseUp
+			// occurs if we were panning
+			self.vp1.mousePan.on('panStart', function () {
+				// Store the current cursor mode
+				ige.client.data('tempCursorMode', ige.client.data('cursorMode'));
 
-				// Create a path finder
-				self.pathFinder = new IgePathFinder()
-					.neighbourLimit(100);
+				// Switch the cursor mode
+				ige.client.data('cursorMode', 'panning');
+				ige.input.stopPropagation();
+			});
 
-				// Assign the pathfinder to the player
-				self.player.addComponent(IgePathComponent).path
-					.finder(self.pathFinder)
-					.tileMap(ige.$('tileMap1'))
-					.tileChecker(function (tileData, tileX, tileY, node, prevNodeX, prevNodeY, dynamic) {
-						// If the map tile data is set to 1, don't allow a path along it
-						return tileData !== 1;
-					})
-					.lookAheadSteps(3)
-					.dynamic(true)
-					.allowSquare(true) // Allow north, south, east and west movement
-					.allowDiagonal(false) // Allow north-east, north-west, south-east, south-west movement
-					.drawPath(true) // Enable debug drawing the paths
-					.drawPathGlow(true) // Enable path glowing (eye candy)
-					.drawPathText(true); // Enable path text output
+			self.vp1.mousePan.on('panEnd', function () {
+				ige.client.data('cursorMode', ige.client.data('tempCursorMode'));
+				ige.input.stopPropagation();
+			});
 
-				// Register some event listeners for the path
-				self.player.path.on('started', function () { console.log('Pathing started...'); });
-				self.player.path.on('stopped', function () { console.log('Pathing stopped.'); });
-				self.player.path.on('cleared', function () { console.log('Path data cleared.'); });
-				self.player.path.on('pointComplete', function () { console.log('Path point reached...'); });
-				self.player.path.on('pathComplete', function () { console.log('Path completed...'); });
-				self.player.path.on('traversalComplete', function () { this._entity.animation.stop(); console.log('Traversal of all paths completed.'); });
+        // Create an isometric tile map
+        self.tileMap1 = new IgeTileMap2d()
+            .id('tileMap1')
+            .isometricMounts(self.isoMode)
+            .drawMouse(false)
+            .drawBounds(false)
+            .drawBoundsData(false)
+            .gridSize(40,20)
+            .highlightOccupied(true) // Draws a red tile wherever a tile is "occupied"
+            .mount(self.objectScene)					 // Mark tile as occupied with a value of 1 (x, y, width, height, value)
+            .loadMap({"data":{
+                    "0":{"0":1,"1":1,"2":1,"3":1,"4":1,"5":1,"6":1,"7":1,"8":1,"9":1,"10":1,"11":1,"12":1,"13":1,"14":1,"15":1,"16":1,"17":1,"18":1,"19":1,"20":1,"21":1,"22":1,"23":1,"24":1,"25":1,"26":1,"27":1,"28":1,"29":1,"30":1,"31":1,"32":1,"33":1,"34":1,"35":1,"36":1,"37":1,"38":1,"39":1,"40":1,"41":1,"42":1,"43":1,"44":1,"45":1,"46":1,"47":1,"48":1,"49":1,"50":1,"51":1,"52":1,"53":1,"54":1,"55":1,"56":1,"57":1,"58":1,"59":1,"60":1,"61":1,"62":1,"63":1,"64":1,"65":1,"66":1,"67":1,"68":1,"69":1,"70":1,"71":1,"72":1,"73":1,"74":1,"75":1,"76":1,"77":1,"78":1,"79":1,"80":1,"81":1,"82":1,"83":1,"84":1,"85":1,"86":1,"87":1,"88":1,"89":1,"90":1,"91":1,"92":1,"93":1},
+                    "1":{"0":1,"28":1,"50":1,"54":1,"58":1,"62":1,"80":1,"93":1},
+                    "2":{"0":1,"10":1,"11":1,"13":1,"14":1,"16":1,"17":1,"19":1,"20":1,"23":1,"24":1,"28":1,"43":1,"50":1,"54":1,"58":1,"62":1,"64":1,"65":1,"68":1,"69":1,"72":1,"73":1,"80":1,"93":1},
+                    "3":{"0":1,"3":1,"4":1,"10":1,"11":1,"13":1,"14":1,"16":1,"17":1,"19":1,"20":1,"23":1,"24":1,"28":1,"43":1,"50":1,"54":1,"58":1,"62":1,"64":1,"65":1,"68":1,"69":1,"72":1,"73":1,"80":1,"93":1},
+                    "4":{"0":1,"3":1,"4":1,"25":1,"26":1,"28":1,"35":1,"36":1,"37":1,"38":1,"39":1,"40":1,"41":1,"42":1,"43":1,"44":1,"50":1,"54":1,"58":1,"62":1,"80":1,"93":1},
+                    "5":{"0":1,"10":1,"11":1,"13":1,"14":1,"16":1,"17":1,"19":1,"20":1,"25":1,"26":1,"28":1,"43":1,"50":1,"54":1,"58":1,"62":1,"64":1,"65":1,"68":1,"69":1,"72":1,"73":1,"77":1,"78":1,"80":1,"93":1},
+                    "6":{"0":1,"10":1,"11":1,"13":1,"14":1,"16":1,"17":1,"19":1,"20":1,"28":1,"43":1,"50":1,"54":1,"58":1,"62":1,"64":1,"65":1,"68":1,"69":1,"72":1,"73":1,"77":1,"78":1,"80":1,"93":1},
+                    "7":{"0":1,"28":1,"50":1,"54":1,"58":1,"62":1,"77":1,"78":1,"80":1,"93":1},
+                    "8":{"0":1,"26":1,"27":1,"28":1,"29":1,"30":1,"31":1,"32":1,"35":1,"36":1,"37":1,"38":1,"39":1,"40":1,"41":1,"42":1,"43":1,"44":1,"45":1,"46":1,"47":1,"48":1,"49":1,"50":1,"51":1,"52":1,"53":1,"54":1,"58":1,"61":1,"62":1,"68":1,"69":1,"72":1,"73":1,"77":1,"78":1,"80":1,"93":1},
+                    "9":{"0":1,"5":1,"6":1,"8":1,"9":1,"11":1,"12":1,"14":1,"15":1,"17":1,"18":1,"20":1,"21":1,"62":1,"68":1,"69":1,"72":1,"73":1,"80":1,"93":1},
+                    "10":{"0":1,"5":1,"6":1,"8":1,"9":1,"11":1,"12":1,"14":1,"15":1,"17":1,"18":1,"20":1,"21":1,"24":1,"62":1,"64":1,"65":1,"80":1,"93":1},
+                    "11":{"0":1,"24":1,"62":1,"64":1,"65":1,"80":1,"93":1},
+                    "12":{"0":1,"1":1,"2":1,"3":1,"4":1,"5":1,"6":1,"7":1,"8":1,"9":1,"10":1,"11":1,"12":1,"13":1,"14":1,"15":1,"16":1,"17":1,"18":1,"19":1,"20":1,"21":1,"22":1,"23":1,"24":1,"31":1,"32":1,"33":1,"34":1,"35":1,"36":1,"37":1,"38":1,"39":1,"40":1,"41":1,"42":1,"43":1,"44":1,"45":1,"46":1,"47":1,"48":1,"62":1,"80":1,"81":1,"82":1,"85":1,"86":1,"87":1,"88":1,"89":1,"90":1,"91":1,"92":1,"93":1},
+                    "13":{"0":1,"24":1,"31":1,"39":1,"44":1,"49":1,"62":1,"93":1},
+                    "14":{"0":1,"2":1,"3":1,"6":1,"7":1,"10":1,"11":1,"14":1,"15":1,"18":1,"19":1,"31":1,"39":1,"44":1,"50":1,"93":1},
+                    "15":{"0":1,"2":1,"3":1,"6":1,"7":1,"10":1,"11":1,"14":1,"15":1,"18":1,"19":1,"31":1,"39":1,"40":1,"41":1,"42":1,"43":1,"44":1,"51":1,"93":1},
+                    "16":{"0":1,"24":1,"31":1,"39":1,"44":1,"47":1,"48":1,"51":1,"62":1,"93":1},
+                    "17":{"0":1,"2":1,"3":1,"24":1,"31":1,"39":1,"44":1,"47":1,"48":1,"51":1,"62":1,"68":1,"69":1,"72":1,"73":1,"76":1,"77":1,"81":1,"82":1,"86":1,"87":1,"93":1},
+                    "18":{"0":1,"2":1,"3":1,"24":1,"31":1,"39":1,"44":1,"47":1,"48":1,"51":1,"62":1,"68":1,"69":1,"72":1,"73":1,"76":1,"77":1,"81":1,"82":1,"86":1,"87":1,"93":1},
+                    "19":{"0":1,"24":1,"31":1,"39":1,"44":1,"47":1,"48":1,"51":1,"62":1,"93":1},
+                    "20":{"0":1,"24":1,"31":1,"39":1,"44":1,"47":1,"48":1,"51":1,"62":1,"64":1,"65":1,"68":1,"69":1,"72":1,"73":1,"76":1,"77":1,"81":1,"82":1,"86":1,"87":1,"93":1},
+                    "21":{"0":1,"2":1,"3":1,"6":1,"7":1,"10":1,"11":1,"14":1,"15":1,"18":1,"19":1,"24":1,"31":1,"39":1,"44":1,"47":1,"48":1,"51":1,"62":1,"64":1,"65":1,"68":1,"69":1,"72":1,"73":1,"76":1,"77":1,"81":1,"82":1,"86":1,"87":1,"93":1},
+                    "22":{"0":1,"2":1,"3":1,"6":1,"7":1,"10":1,"11":1,"14":1,"15":1,"18":1,"19":1,"24":1,"31":1,"39":1,"44":1,"51":1,"62":1,"93":1},
+                    "23":{"0":1,"24":1,"31":1,"39":1,"44":1, "62":1,"64":1,"65":1,"68":1,"69":1,"72":1,"73":1,"76":1,"77":1,"81":1,"82":1,"86":1,"87":1,"93":1},
+                    "24":{"0":1,"1":1,"2":1,"3":1,"4":1,"5":1,"6":1,"7":1,"8":1,"9":1,"10":1,"11":1,"12":1,"13":1,"14":1,"15":1,"16":1,"17":1,"18":1,"19":1,"20":1,"21":1,"22":1,"23":1,"24":1,"31":1,"39":1,"44":1,"62":1,"64":1,"65":1,"68":1,"69":1,"72":1,"73":1,"76":1,"77":1,"81":1,"82":1,"86":1,"87":1,"93":1},
+                    "25":{"0":1,"24":1,"31":1,"32":1,"33":1,"34":1,"35":1,"36":1,"37":1,"38":1,"39":1,"44":1,"45":1,"46":1,"47":1,"48":1,"62":1,"93":1},
+                    "26":{"0":1,"24":1,"62":1,"68":1,"69":1,"72":1,"73":1,"76":1,"77":1,"81":1,"82":1,"86":1,"87":1,"93":1},
+                    "27":{"0":1,"2":1,"3":1,"6":1,"7":1,"10":1,"11":1,"14":1,"15":1,"18":1,"19":1,"24":1,"62":1,"68":1,"69":1,"72":1,"73":1,"76":1,"77":1,"81":1,"82":1,"86":1,"87":1,"93":1},
+                    "28":{"0":1,"2":1,"6":1,"7":1,"10":1,"11":1,"14":1,"15":1,"18":1,"19":1,"62":1,"93":1},
+                    "29":{"0":1,"27":1,"28":1,"29":1,"30":1,"31":1,"34":1,"35":1,"36":1,"37":1,"38":1,"39":1,"40":1,"41":1,"42":1,"43":1,"44":1,"45":1,"46":1,"47":1,"48":1,"49":1,"50":1,"51":1,"52":1,"62":1,"63":1,"64":1,"65":1,"66":1,"67":1,"68":1,"69":1,"70":1,"71":1,"72":1,"73":1,"74":1,"75":1,"76":1,"77":1,"78":1,"79":1,"80":1,"81":1,"82":1,"83":1,"84":1,"85":1,"86":1,"87":1,"88":1,"89":1,"90":1,"91":1,"92":1,"93":1},
+                    "30":{"0":1,"27":1,"40":1,"53":1,"62":1,"93":1},
+                    "31":{"0":1,"26":1,"40":1,"62":1,"93":1},
+                    "32":{"0":1,"2":1,"3":1,"25":1,"40":1,"62":1,"66":1,"67":1,"70":1,"71":1,"74":1,"75":1,"78":1,"79":1,"83":1,"84":1,"88":1,"89":1,"93":1},
+                    "33":{"0":1,"2":1,"3":1,"24":1,"40":1,"42":1,"43":1,"44":1,"56":1,"62":1,"66":1,"67":1,"70":1,"71":1,"74":1,"75":1,"78":1,"79":1,"83":1,"84":1,"88":1,"89":1,"93":1},
+                    "34":{"0":1,"23":1,"40":1,"44":1,"57":1,"62":1,"93":1},"35":{"0":1,"22":1,"29":1,"30":1,"33":1,"34":1,"40":1,"44":1,"57":1,"62":1,"66":1,"67":1,"70":1,"71":1,"74":1,"75":1,"78":1,"79":1,"83":1,"84":1,"88":1,"89":1,"93":1},
+                    "36":{"0":1,"22":1,"29":1,"30":1,"33":1,"34":1,"40":1,"44":1,"57":1,"62":1,"66":1,"67":1,"70":1,"71":1,"74":1,"75":1,"78":1,"79":1,"83":1,"84":1,"88":1,"89":1,"93":1},
+                    "37":{"0":1,"2":1,"3":1,"6":1,"7":1,"10":1,"11":1,"14":1,"15":1,"18":1,"19":1,"22":1,"40":1,"57":1,"62":1,"93":1},
+                    "38":{"0":1,"2":1,"3":1,"6":1,"7":1,"10":1,"11":1,"14":1,"15":1,"18":1,"19":1,"22":1,"29":1,"30":1,"33":1,"34":1,"40":1,"57":1,"93":1},
+                    "39":{"0":1,"22":1,"29":1,"30":1,"33":1,"34":1,"40":1,"50":1,"51":1,"52":1,"57":1,"93":1},
+                    "40":{"0":1,"22":1,"40":1,"50":1,"57":1,"62":1,"65":1,"66":1,"69":1,"70":1,"73":1,"74":1,"77":1,"78":1,"81":1,"82":1,"85":1,"86":1,"89":1,"90":1,"93":1},
+                    "41":{"0":1,"22":1,"40":1,"50":1,"57":1,"62":1,"65":1,"66":1,"69":1,"70":1,"73":1,"74":1,"77":1,"78":1,"81":1,"82":1,"85":1,"86":1,"89":1,"90":1,"93":1},
+                    "42":{"0":1,"22":1,"40":1,"50":1,"57":1,"62":1,"93":1},
+                    "43":{"0":1,"22":1,"40":1,"57":1,"62":1,"93":1},
+                    "44":{"0":1,"1":1,"2":1,"3":1,"4":1,"5":1,"6":1,"7":1,"8":1,"9":1,"10":1,"11":1,"12":1,"13":1,"14":1,"15":1,"16":1,"17":1,"18":1,"19":1,"20":1,"21":1,"22":1,"23":1,"24":1,"25":1,"26":1,"27":1,"28":1,"29":1,"30":1,"31":1,"32":1,"33":1,"34":1,"35":1,"36":1,"37":1,"38":1,"39":1,"40":1,"41":1,"42":1,"43":1,"44":1,"45":1,"46":1,"47":1,"48":1,"49":1,"50":1,"51":1,"52":1,"53":1,"54":1,"55":1,"56":1,"57":1,"58":1,"59":1,"60":1,"61":1,"62":1,"63":1,"64":1,"65":1,"66":1,"67":1,"68":1,"69":1,"70":1,"71":1,"72":1,"73":1,"74":1,"75":1,"76":1,"77":1,"78":1,"79":1,"80":1,"81":1,"82":1,"83":1,"84":1,"85":1,"86":1,"87":1,"88":1,"89":1,"90":1,"91":1,"92":1,"93":1}},
+                "dataXY":[0,0]});
 
-				// Some error events from the path finder
-				self.pathFinder.on('noPathFound', function () { console.log('Could not find a path to the destination!'); });
-				self.pathFinder.on('exceededLimit', function () { console.log('Path finder exceeded allowed limit of nodes!'); });
-				self.pathFinder.on('pathFound', function () { console.log('Path to destination calculated...'); });
+		self.player = new Character()
+			.id('player')
+			.addComponent(PlayerComponent)
+			.setType(4)
+			.drawBounds(false)
+			.drawBoundsData(false)
+			.mount(self.tileMap1)
+            .scaleTo(1.5,1.5,1)
+        	.translateToTile(60, 43, 0)
+			.isometric(true);
 
-				// Start traversing the path!
-				self.player.path
-					.set(0, 0, 0, 3, 7, 0)
-					.speed(5)
-					.start(1000);
-			}
-		});
-	}
+		// Set the camera to track the character with some
+		// tracking smoothing turned on (100)
+		self.vp1.camera.lookAt(self.player);
+
+		// Create a path finder
+		self.pathFinder = new IgePathFinder()
+			.neighbourLimit(1000);
+
+			// Assign the pathfinder to the player
+		self.player.addComponent(IgePathComponent).path
+			.finder(self.pathFinder)
+			.tileMap(ige.$('tileMap1'))
+			.tileChecker(function (tileData, tileX, tileY, node, prevNodeX, prevNodeY, dynamic) {
+				return tileData !== 1;
+			})
+			.lookAheadSteps(3)
+			.dynamic(true)
+			.allowSquare(true)
+			.allowDiagonal(false)
+			.drawPath(true)
+			.drawPathGlow(true)
+			.drawPathText(false);
+
+		// Register some event listeners for the path
+		//self.player.path.on('started', function () { console.log('Pathing started...'); });
+		//self.player.path.on('cleared', function () { console.log('Path data cleared.'); });
+		self.player.path.on('pointComplete', function () { self.player.directionAnimation(); });
+		self.player.path.on('pathComplete', function () { self.player.animation.stop(); });
+
+		self.pathFinder.on('noPathFound', function () { self.player.animation.stop(); });
+		//self.pathFinder.on('exceededLimit', function () { console.log('Path finder exceeded allowed limit of nodes!'); });
+		self.pathFinder.on('pathFound', function () { self.player.directionAnimation(); });
+
+        self.player.path
+			.set(0, 0, 0, 60, 43, 0)
+			.speed(4);
+    },
+
+    loadTextures: function () {
+        this.gameTexture.table = new IgeTexture('../assets/textures/objects/pcTable.png');
+        this.gameTexture.table2 = new IgeTexture('../assets/textures/objects/table2.png');
+        this.gameTexture.pcTable = new IgeTexture('../assets/textures/objects/PcTable.png');
+        this.gameTexture.pcTable2 = new IgeTexture('../assets/textures/objects/PcTable2.png');
+        this.gameTexture.tumbochka = new IgeTexture('../assets/textures/objects/tumbochka.png');
+    },
+
+    setupEntities: function () {
+        // Create an entity
+        var i, type, x, y;
+        type = 0;
+        switch (type) {
+            case 0:
+                this.placeItem('table', 63, 42);
+                break;
+
+        }
+    },
+
+    placeItem: function (type, tileX, tileY) {
+        var item = new this[type](this.tileMap1, tileX, tileY).place();
+        this.obj.push(item);
+
+        return item;
+    }
 });
 
 if (typeof(module) !== 'undefined' && typeof(module.exports) !== 'undefined') { module.exports = Client; }
