@@ -115,7 +115,7 @@ var ClientObjects = {
                 .texture(ige.client.gameTexture.block)
                 .dimensionsFromCell()
                 .scaleTo(1, 1, 1)
-				.opacity(0.75)
+				//.opacity(0.75)
                 .mount(this);
         },
 
